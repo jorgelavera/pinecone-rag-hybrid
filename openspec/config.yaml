@@ -1,0 +1,9 @@
+schema_version: 1
+project: pinecone-rag-hybrid
+context_file: project.md
+strict_tdd: true
+testing:
+  runner: pytest
+  test_command: uv run pytest -q
+  layers: [unit, integration]
+  notes: "No tests exist yet (empty project). Default to strict TDD for new implementation."

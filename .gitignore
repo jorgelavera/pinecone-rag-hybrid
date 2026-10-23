@@ -1,0 +1,14 @@
+# Secrets
+.env
+
+# Virtual environment and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Disposable hydration cache: rebuilt from Pinecone or the local corpus.
+artifacts/bm25_corpus.json
+
+# NOTE: artifacts/last_eval.json is committed on purpose so that
+# `python evaluate.py --offline` reports metrics with no credentials.

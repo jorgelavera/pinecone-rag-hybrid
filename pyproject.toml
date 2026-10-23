@@ -1,0 +1,9 @@
+# Test configuration only. Dependencies are pinned in requirements.txt and the
+# package is used straight from the source tree (no build backend, no install).
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+markers = [
+    "integration: needs live PINECONE_API_KEY and OPENAI_API_KEY (auto-skipped when either is unset)",
+]

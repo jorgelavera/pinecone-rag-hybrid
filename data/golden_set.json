@@ -1,0 +1,14 @@
+[
+  {"question_id": "q1", "question": "How do pytest fixture scopes control when setup and teardown run?", "relevant_document_ids": ["pytest-fixtures", "pytest-conftest"]},
+  {"question_id": "q2", "question": "Where should fixtures that many test modules share be defined?", "relevant_document_ids": ["pytest-conftest", "pytest-fixtures"]},
+  {"question_id": "q3", "question": "How do yield fixtures separate setup from teardown code?", "relevant_document_ids": ["pytest-fixtures", "pytest-basics"]},
+  {"question_id": "q4", "question": "How can I run only the tests marked as slow?", "relevant_document_ids": ["pytest-markers", "pytest-basics"]},
+  {"question_id": "q5", "question": "How do I register a custom marker to avoid unknown-marker warnings?", "relevant_document_ids": ["pytest-markers", "pytest-conftest"]},
+  {"question_id": "q6", "question": "How do I run the same test against several input values?", "relevant_document_ids": ["pytest-parametrize", "pytest-basics"]},
+  {"question_id": "q7", "question": "How do I give parametrized cases readable identifiers in the report?", "relevant_document_ids": ["pytest-parametrize", "pytest-markers"]},
+  {"question_id": "q8", "question": "When should I use monkeypatch instead of a mocking library?", "relevant_document_ids": ["pytest-mocking", "pytest-fixtures"]},
+  {"question_id": "q9", "question": "How do I assert that a mocked function was called with specific arguments?", "relevant_document_ids": ["pytest-mocking", "pytest-basics"]},
+  {"question_id": "q10", "question": "How can a plugin add hooks that run for every test session?", "relevant_document_ids": ["pytest-plugins", "pytest-conftest"]},
+  {"question_id": "q11", "question": "How do I enforce a minimum coverage threshold in Continuous Integration?", "relevant_document_ids": ["pytest-coverage", "pytest-conftest"]},
+  {"question_id": "q12", "question": "How do I produce an HTML or XML coverage report for review?", "relevant_document_ids": ["pytest-coverage", "pytest-basics"]}
+]
