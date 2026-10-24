@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-22T23:00:00Z",
+  "index_name": "rag-pytest",
+  "namespace": "rag-docs",
+  "embedding_model": "text-embedding-3-small",
+  "pipeline_version": "1",
+  "k": 5,
+  "n_questions": 5,
+  "golden_set_path": "data/calibration_set.json",
+  "primary": {
+    "mode": "hybrid",
+    "precision": 0.36,
+    "recall": 0.833333,
+    "ceiling": 0.44,
+    "normalized_precision": 0.818182
+  },
+  "ablations": {
+    "vector": {
+      "precision": 0.36,
+      "recall": 0.833333,
+      "ceiling": 0.44,
+      "normalized_precision": 0.818182
+    },
+    "bm25": {
+      "precision": 0.36,
+      "recall": 0.833333,
+      "ceiling": 0.44,
+      "normalized_precision": 0.818182
+    },
+    "hybrid": {
+      "precision": 0.36,
+      "recall": 0.833333,
+      "ceiling": 0.44,
+      "normalized_precision": 0.818182
+    }
+  },
+  "per_question": [
+    {
+      "question_id": "cal-1",
+      "retrieved_document_ids": [
+        "pytest-fixtures",
+        "pytest-basics",
+        "pytest-markers",
+        "pytest-mocking",
+        "pytest-parametrize"
+      ],
+      "hits": 1,
+      "m": 1,
+      "precision": 0.2,
+      "recall": 1.0
+    },
+    {
+      "question_id": "cal-2",
+      "retrieved_document_ids": [
+        "pytest-basics",
+        "pytest-conftest",
+        "pytest-markers",
+        "pytest-mocking",
+        "pytest-parametrize"
+      ],
+      "hits": 1,
+      "m": 1,
+      "precision": 0.2,
+      "recall": 1.0
+    },
+    {
+      "question_id": "cal-3",
+      "retrieved_document_ids": [
+        "pytest-basics",
+        "pytest-conftest",
+        "pytest-markers",
+        "pytest-mocking",
+        "pytest-parametrize"
+      ],
+      "hits": 1,
+      "m": 1,
+      "precision": 0.2,
+      "recall": 1.0
+    },
+    {
+      "question_id": "cal-4",
+      "retrieved_document_ids": [
+        "pytest-basics",
+        "pytest-conftest",
+        "pytest-mocking",
+        "pytest-fixtures",
+        "pytest-markers"
+      ],
+      "hits": 1,
+      "m": 3,
+      "precision": 0.2,
+      "recall": 0.333333
+    },
+    {
+      "question_id": "cal-5",
+      "retrieved_document_ids": [
+        "pytest-basics",
+        "pytest-conftest",
+        "pytest-coverage",
+        "pytest-fixtures",
+        "pytest-markers"
+      ],
+      "hits": 5,
+      "m": 6,
+      "precision": 1.0,
+      "recall": 0.833333
+    }
+  ]
+}

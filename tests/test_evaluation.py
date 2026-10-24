@@ -1,6 +1,7 @@
 """Scoring and report payload shape, with retrieval injected as plain id lists."""
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -11,8 +12,24 @@ from rag.evaluation import (
     MetricsReport,
     QuestionScore,
     build_report_payload,
+    load_calibration_set,
     score_retrieval,
 )
+from rag.metrics import normalized_precision, precision_ceiling
+
+ROOT = Path(__file__).resolve().parents[1]
+ARTIFACT = ROOT / "artifacts" / "last_eval.json"
+CALIBRATION_SET = ROOT / "data" / "calibration_set.json"
+CORPUS_IDS = {
+    "pytest-basics",
+    "pytest-conftest",
+    "pytest-coverage",
+    "pytest-fixtures",
+    "pytest-markers",
+    "pytest-mocking",
+    "pytest-parametrize",
+    "pytest-plugins",
+}
 
 GOLDEN = [
     GoldenQuestion("q1", "How do fixture scopes work?", ("pytest-fixtures", "pytest-conftest")),
@@ -145,4 +162,134 @@ def test_build_report_payload_rejects_a_report_for_a_different_golden_set():
             golden=GOLDEN,
             ablation={"hybrid": report},
             generated_at="2026-10-22T23:00:00Z",
+        )
+
+
+# --------------------------------------------------------------------------- #
+# Frozen calibration set (data/calibration_set.json)
+# --------------------------------------------------------------------------- #
+
+
+def test_load_calibration_set_returns_questions_and_fixed_retrieved_ids():
+    questions, retrieved = load_calibration_set(CALIBRATION_SET, corpus_ids=CORPUS_IDS)
+
+    assert [question.question_id for question in questions] == ["cal-1", "cal-2", "cal-3", "cal-4", "cal-5"]
+    assert [len(question.relevant_document_ids) for question in questions] == [1, 1, 1, 3, 6]
+    assert len(retrieved) == len(questions)
+    assert all(isinstance(ids, tuple) and ids for ids in retrieved)
+
+    # The frozen worked example: scoring the fixed lists reproduces the
+    # documented aggregates exactly (design section 6).
+    report = score_retrieval(questions, retrieved, k=5)
+    assert report.precision == pytest.approx(0.36)
+    assert report.recall == pytest.approx(0.833333, abs=1e-6)
+    assert report.ceiling == pytest.approx(0.44)
+    assert report.normalized_precision == pytest.approx(0.818182, abs=1e-6)
+    assert [score.hits for score in report.per_question] == [1, 1, 1, 1, 5]
+
+
+def test_load_calibration_set_rejects_unknown_retrieved_ids(tmp_path):
+    path = tmp_path / "calibration_set.json"
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "question_id": "cal-x",
+                    "question": "retrieves an id that is not in the corpus",
+                    "relevant_document_ids": ["pytest-fixtures"],
+                    "retrieved_document_ids": ["pytest-fixtures", "pytest-unknown"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(GoldenSetError, match="pytest-unknown"):
+        load_calibration_set(path, corpus_ids=CORPUS_IDS)
+
+
+def test_load_calibration_set_requires_retrieved_ids_per_entry(tmp_path):
+    path = tmp_path / "calibration_set.json"
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "question_id": "cal-x",
+                    "question": "missing the fixed retrieved list",
+                    "relevant_document_ids": ["pytest-fixtures"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(GoldenSetError, match="retrieved_document_ids"):
+        load_calibration_set(path, corpus_ids=CORPUS_IDS)
+
+
+# --------------------------------------------------------------------------- #
+# The committed artifact must be internally consistent
+# --------------------------------------------------------------------------- #
+
+
+def _synthetic_golden_and_retrieval(payload: dict) -> tuple[list[GoldenQuestion], list[list[str]]]:
+    """Rebuild (relevant, retrieved) pairs that reproduce each per_question row.
+
+    A row stores hits/m and the retrieved ids but not the relevant set, so the
+    relevant set is synthesized: the first ``hits`` distinct retrieved ids plus
+    ``m - hits`` unseen stand-ins. Scoring that pair recomputes exactly the
+    row's hits, precision and recall through the real metric code.
+    """
+    golden: list[GoldenQuestion] = []
+    retrieved: list[list[str]] = []
+    for row in payload["per_question"]:
+        retrieved_ids = list(row["retrieved_document_ids"])
+        distinct = list(dict.fromkeys(retrieved_ids))
+        hits, m = row["hits"], row["m"]
+        assert 0 <= hits <= min(m, len(distinct)), f"row {row['question_id']} has impossible hits/m"
+        relevant = distinct[:hits] + [f"__unseen__{row['question_id']}_{index}" for index in range(m - hits)]
+        golden.append(GoldenQuestion(row["question_id"], row["question_id"], tuple(relevant)))
+        retrieved.append(retrieved_ids)
+    return golden, retrieved
+
+
+def test_committed_artifact_aggregates_match_its_per_question_rows():
+    payload = json.loads(ARTIFACT.read_text(encoding="utf-8"))
+    per_question = payload["per_question"]
+    k = payload["k"]
+
+    assert payload["n_questions"] == len(per_question)
+    assert len(per_question) > 0
+
+    golden, retrieved = _synthetic_golden_and_retrieval(payload)
+    report = score_retrieval(golden, retrieved, k=k)
+
+    primary = payload["primary"]
+    assert round(report.precision, 6) == primary["precision"]
+    assert round(report.recall, 6) == primary["recall"]
+    assert round(report.ceiling, 6) == primary["ceiling"]
+    assert round(report.normalized_precision, 6) == primary["normalized_precision"]
+
+    for row, score in zip(per_question, report.per_question):
+        assert row["hits"] == score.hits
+        assert row["m"] == score.m
+        assert row["precision"] == round(score.precision, 6)
+        assert row["recall"] == round(score.recall, 6)
+        # retrieved ids are document_ids, never chunk ids like "doc#000"
+        assert all("#" not in doc_id for doc_id in row["retrieved_document_ids"])
+
+    # per_question belongs to the primary (hybrid) mode.
+    assert payload["ablations"]["hybrid"] == {
+        key: primary[key] for key in ("precision", "recall", "ceiling", "normalized_precision")
+    }
+
+    # Ablations share the per-question m values: the ceiling is mode-independent
+    # and normalized precision is derived, so both are fully recomputable.
+    ceiling = precision_ceiling([row["m"] for row in per_question], k=k)
+    assert list(payload["ablations"]) == ["vector", "bm25", "hybrid"]
+    for mode in ("vector", "bm25", "hybrid"):
+        ablation = payload["ablations"][mode]
+        assert ablation["ceiling"] == round(ceiling, 6)
+        assert ablation["normalized_precision"] == round(
+            normalized_precision(ablation["precision"], ceiling), 6
         )

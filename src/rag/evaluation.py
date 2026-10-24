@@ -96,6 +96,47 @@ def load_golden_set(
     return questions
 
 
+def load_calibration_set(
+    path: Path,
+    *,
+    corpus_ids: set[str] | None = None,
+) -> tuple[list[GoldenQuestion], list[tuple[str, ...]]]:
+    """Load the frozen calibration set: validated golden fields + fixed retrieved ids.
+
+    The file is a JSON array whose entries carry the standard Golden Set fields
+    plus a ``retrieved_document_ids`` list — the frozen retrieval the metrics
+    are calibrated against. Single-relevant questions are allowed here on
+    purpose (``min_relevant=1``): the worked example uses ``m_q=[1,1,1,3,6]``
+    to prove the ``min(m, k)`` ceiling clamp.
+    """
+    path = Path(path)
+    questions = load_golden_set(path, corpus_ids=corpus_ids, min_relevant=1)
+    raw = json.loads(path.read_text(encoding="utf-8"))
+
+    retrieved: list[tuple[str, ...]] = []
+    for index, entry in enumerate(raw):
+        ids = entry.get("retrieved_document_ids") if isinstance(entry, dict) else None
+        if (
+            not isinstance(ids, list)
+            or not ids
+            or not all(isinstance(doc_id, str) and doc_id.strip() for doc_id in ids)
+        ):
+            raise GoldenSetError(
+                f"Calibration entry #{index} needs 'retrieved_document_ids' "
+                "as a non-empty list of non-empty strings"
+            )
+        unique = tuple(dict.fromkeys(ids))
+        if corpus_ids is not None:
+            unknown = [doc_id for doc_id in unique if doc_id not in corpus_ids]
+            if unknown:
+                raise GoldenSetError(
+                    f"Calibration entry #{index} retrieves unknown document id(s): "
+                    f"{', '.join(unknown)}. Matching against the corpus is exact, never substring-based."
+                )
+        retrieved.append(unique)
+    return questions, retrieved
+
+
 def score_retrieval(
     golden: Sequence[GoldenQuestion],
     retrieved_ids: Sequence[Sequence[str]],

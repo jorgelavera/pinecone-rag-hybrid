@@ -61,29 +61,40 @@ class FakeRetriever:
 
 
 class FakeVectorStore:
-    """Minimal vector store: `add_texts` batching plus `as_retriever`."""
+    """Minimal vector store: `add_texts` batching plus `as_retriever`.
+
+    Upserts are stored in `vectors` keyed by id, so a re-ingest is observably
+    idempotent (the key set does not grow) exactly like a Pinecone upsert.
+    """
 
     def __init__(self, documents: list[SimpleNamespace] | None = None):
         self.documents = list(documents or [])
         self.retriever = FakeRetriever(self.documents)
         self.retriever_kwargs: dict[str, object] = {}
         self.add_texts_calls: list[dict[str, object]] = []
+        self.vectors: dict[str, str] = {}
 
     def as_retriever(self, **kwargs):
         self.retriever_kwargs = dict(kwargs)
         return self.retriever
 
     def add_texts(self, texts, metadatas=None, ids=None, batch_size=None, namespace=None):
+        texts = list(texts)
+        metadatas = list(metadatas or [])
+        ids = list(ids or [])
         self.add_texts_calls.append(
             {
-                "texts": list(texts),
-                "metadatas": list(metadatas or []),
-                "ids": list(ids or []),
+                "texts": texts,
+                "metadatas": metadatas,
+                "ids": ids,
                 "batch_size": batch_size,
                 "namespace": namespace,
             }
         )
-        return list(ids or [])
+        for position, text in enumerate(texts):
+            vector_id = ids[position] if position < len(ids) else f"generated-{position}"
+            self.vectors[vector_id] = text
+        return ids
 
 
 @dataclass
@@ -123,7 +134,12 @@ class FakeIndex:
 
 
 class FakeSplitter:
-    """Character-based splitter so tests never need tiktoken."""
+    """Character-based splitter so tests never need tiktoken.
+
+    It emits `start_index` in each piece's metadata, mirroring
+    `RecursiveCharacterTextSplitter(add_start_index=True)`, which is what the
+    section resolver consumes.
+    """
 
     def __init__(self, chunk_size: int = 100, chunk_overlap: int = 0):
         self.chunk_size = chunk_size
@@ -135,10 +151,62 @@ class FakeSplitter:
 
     def split_documents(self, documents):
         chunks = []
+        step = max(self.chunk_size - self.chunk_overlap, 1)
         for document in documents:
-            for text in self.split_text(document.page_content):
-                chunks.append(SimpleNamespace(page_content=text, metadata=dict(document.metadata)))
+            for start in range(0, len(document.page_content), step):
+                text = document.page_content[start : start + self.chunk_size]
+                metadata = {**document.metadata, "start_index": start}
+                chunks.append(SimpleNamespace(page_content=text, metadata=metadata))
         return chunks
+
+
+@dataclass
+class FakePineconeClient:
+    """Records the legacy Pinecone control-plane surface (`has_index` / `create_index` / `Index`).
+
+    `indexes` deliberately raises: `pinecone==7.3.0` has no schema API, so any
+    implementation that reaches for it fails loudly instead of silently working
+    on a mock that never existed in the real SDK.
+    """
+
+    existing: dict[str, SimpleNamespace] = field(default_factory=dict)
+    create_calls: list[dict[str, object]] = field(default_factory=list)
+    describe_calls: list[str] = field(default_factory=list)
+    index_calls: list[str] = field(default_factory=list)
+    delete_calls: list[str] = field(default_factory=list)
+    index_factory: object = None
+
+    def has_index(self, name: str) -> bool:
+        return name in self.existing
+
+    def create_index(self, name: str = "", dimension=None, metric=None, spec=None, **kwargs):
+        self.create_calls.append(
+            {"name": name, "dimension": dimension, "metric": metric, "spec": spec, **kwargs}
+        )
+        self.existing[name] = SimpleNamespace(name=name, dimension=dimension, metric=metric)
+        return SimpleNamespace(name=name, dimension=dimension, metric=metric)
+
+    def describe_index(self, name: str):
+        self.describe_calls.append(name)
+        record = self.existing[name]
+        return SimpleNamespace(
+            name=name,
+            dimension=record.dimension,
+            metric=record.metric,
+            host=f"https://{name}.fake.pinecone.io",
+        )
+
+    def Index(self, name: str):
+        self.index_calls.append(name)
+        factory = self.index_factory
+        return factory() if factory is not None else FakeIndex()
+
+    def delete_index(self, name: str):
+        self.delete_calls.append(name)
+
+    @property
+    def indexes(self):
+        raise AssertionError("pinecone 7.3.0 has no Pinecone.indexes (schema API); use the legacy surface")
 
 
 @pytest.fixture
@@ -149,3 +217,13 @@ def fake_index() -> FakeIndex:
 @pytest.fixture
 def fake_embeddings() -> FakeEmbeddings:
     return FakeEmbeddings()
+
+
+@pytest.fixture
+def fake_pinecone_client() -> FakePineconeClient:
+    return FakePineconeClient()
+
+
+@pytest.fixture
+def fake_vector_store() -> FakeVectorStore:
+    return FakeVectorStore()

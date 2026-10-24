@@ -1,0 +1,7 @@
+[
+  {"question_id": "cal-1", "question": "Calibration: one relevant document, retrieved first", "relevant_document_ids": ["pytest-fixtures"], "retrieved_document_ids": ["pytest-fixtures", "pytest-basics", "pytest-markers", "pytest-mocking", "pytest-parametrize"]},
+  {"question_id": "cal-2", "question": "Calibration: one relevant document, retrieved second", "relevant_document_ids": ["pytest-conftest"], "retrieved_document_ids": ["pytest-basics", "pytest-conftest", "pytest-markers", "pytest-mocking", "pytest-parametrize"]},
+  {"question_id": "cal-3", "question": "Calibration: one relevant document, retrieved third", "relevant_document_ids": ["pytest-markers"], "retrieved_document_ids": ["pytest-basics", "pytest-conftest", "pytest-markers", "pytest-mocking", "pytest-parametrize"]},
+  {"question_id": "cal-4", "question": "Calibration: three relevant documents, one hit", "relevant_document_ids": ["pytest-mocking", "pytest-plugins", "pytest-coverage"], "retrieved_document_ids": ["pytest-basics", "pytest-conftest", "pytest-mocking", "pytest-fixtures", "pytest-markers"]},
+  {"question_id": "cal-5", "question": "Calibration: six relevant documents, five hits (min(m, k) clamp)", "relevant_document_ids": ["pytest-basics", "pytest-conftest", "pytest-coverage", "pytest-fixtures", "pytest-markers", "pytest-mocking"], "retrieved_document_ids": ["pytest-basics", "pytest-conftest", "pytest-coverage", "pytest-fixtures", "pytest-markers"]}
+]
